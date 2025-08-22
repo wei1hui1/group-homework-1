@@ -12,73 +12,97 @@
 #include <QDebug>
 #include <QStack>
 #include <cmath>
+#include <algorithm>
+#include <numeric>
+#include <QTimer>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
+    memoryValue(0.0),
+    historyList(),
     calculationComplete(false),
-    memoryValue(0.0)
+    historyMode(false),
+    currentHistoryIndex(0),
+    formatMode(0)
 {
     ui->setupUi(this);
     loadHistory();
 
     // 连接数字按钮
-    connect(ui->_7, SIGNAL(clicked()), this, SLOT(onDigitClicked()));     // 7
-    connect(ui->_8, SIGNAL(clicked()), this, SLOT(onDigitClicked()));     // 8
-    connect(ui->_9, SIGNAL(clicked()), this, SLOT(onDigitClicked()));     // 9
-    connect(ui->_4, SIGNAL(clicked()), this, SLOT(onDigitClicked()));     // 4
-    connect(ui->_5, SIGNAL(clicked()), this, SLOT(onDigitClicked()));     // 5
-    connect(ui->_6, SIGNAL(clicked()), this, SLOT(onDigitClicked()));     // 6
-    connect(ui->_1, SIGNAL(clicked()), this, SLOT(onDigitClicked()));     // 1
-    connect(ui->_2, SIGNAL(clicked()), this, SLOT(onDigitClicked()));     // 2
-    connect(ui->_3, SIGNAL(clicked()), this, SLOT(onDigitClicked()));     // 3
-    connect(ui->_0, SIGNAL(clicked()), this, SLOT(onDigitClicked()));     // 0
-    connect(ui->point, SIGNAL(clicked()), this, SLOT(onDotClicked()));     // .
+    connect(ui->_7, SIGNAL(clicked()), this, SLOT(onDigitClicked()));
+    connect(ui->_8, SIGNAL(clicked()), this, SLOT(onDigitClicked()));
+    connect(ui->_9, SIGNAL(clicked()), this, SLOT(onDigitClicked()));
+    connect(ui->_4, SIGNAL(clicked()), this, SLOT(onDigitClicked()));
+    connect(ui->_5, SIGNAL(clicked()), this, SLOT(onDigitClicked()));
+    connect(ui->_6, SIGNAL(clicked()), this, SLOT(onDigitClicked()));
+    connect(ui->_1, SIGNAL(clicked()), this, SLOT(onDigitClicked()));
+    connect(ui->_2, SIGNAL(clicked()), this, SLOT(onDigitClicked()));
+    connect(ui->_3, SIGNAL(clicked()), this, SLOT(onDigitClicked()));
+    connect(ui->_0, SIGNAL(clicked()), this, SLOT(onDigitClicked()));
+    connect(ui->point, SIGNAL(clicked()), this, SLOT(onDotClicked()));
 
     // 连接运算符按钮
-    connect(ui->multiply, SIGNAL(clicked()), this, SLOT(onOperatorClicked()));  // ×
-    connect(ui->division, SIGNAL(clicked()), this, SLOT(onOperatorClicked()));  // ÷
-    connect(ui->add, SIGNAL(clicked()), this, SLOT(onOperatorClicked()));       // +
-    connect(ui->minus, SIGNAL(clicked()), this, SLOT(onOperatorClicked()));     // -
-    connect(ui->FB, SIGNAL(clicked()), this, SLOT(onLeftParenthesisClicked()));  // (
-    connect(ui->BB, SIGNAL(clicked()), this, SLOT(onRightParenthesisClicked())); // )
+    connect(ui->multiply, SIGNAL(clicked()), this, SLOT(onOperatorClicked()));
+    connect(ui->division, SIGNAL(clicked()), this, SLOT(onOperatorClicked()));
+    connect(ui->add, SIGNAL(clicked()), this, SLOT(onOperatorClicked()));
+    connect(ui->minus, SIGNAL(clicked()), this, SLOT(onOperatorClicked()));
+    connect(ui->FB, SIGNAL(clicked()), this, SLOT(onLeftParenthesisClicked()));
+    connect(ui->BB, SIGNAL(clicked()), this, SLOT(onRightParenthesisClicked()));
 
     // 连接功能按钮
-    connect(ui->equal, SIGNAL(clicked()), this, SLOT(onEqualsClicked()));       // =
-    connect(ui->C, SIGNAL(clicked()), this, SLOT(onBackspaceClicked()));      // C应该只清除当前输入
-    connect(ui->del, SIGNAL(clicked()), this, SLOT(onBackspaceClicked()));      // ⌫
-    connect(ui->record, SIGNAL(clicked()), this, SLOT(onHistoryClicked()));     // 🕒
+    connect(ui->equal, SIGNAL(clicked()), this, SLOT(onEqualsClicked()));
+    connect(ui->AC, SIGNAL(clicked()), this, SLOT(onBackspaceClicked()));
+    connect(ui->del, SIGNAL(clicked()), this, SLOT(onDelClicked()));
+    connect(ui->record, SIGNAL(clicked()), this, SLOT(onHistoryClicked()));
 
     // 连接内存功能按钮
-    connect(ui->mc, SIGNAL(clicked()), this, SLOT(onMemoryClearClicked()));     // mc
-    connect(ui->m_add, SIGNAL(clicked()), this, SLOT(onMemoryAddClicked()));    // m+
-    connect(ui->m_minus, SIGNAL(clicked()), this, SLOT(onMemorySubtractClicked()));// m-
-    connect(ui->mr, SIGNAL(clicked()), this, SLOT(onMemoryRecallClicked()));    // mr
+    connect(ui->mc, SIGNAL(clicked()), this, SLOT(onMemoryClearClicked()));
+    connect(ui->m_add, SIGNAL(clicked()), this, SLOT(onMemoryAddClicked()));
+    connect(ui->m_minus, SIGNAL(clicked()), this, SLOT(onMemorySubtractClicked()));
+    connect(ui->mr, SIGNAL(clicked()), this, SLOT(onMemoryRecallClicked()));
 
     // 连接其他功能按钮
-    connect(ui->percent, SIGNAL(clicked()), this, SLOT(onPercentClicked()));    // %
-    connect(ui->AC, SIGNAL(clicked()), this, SLOT(onClearClicked()));           // AC应该清空所有内容
-    // 移除错误的连接：connect(ui->AC, SIGNAL(clicked()), this, SLOT(onToggleSignClicked()));      // +/- 
+    connect(ui->percent, SIGNAL(clicked()), this, SLOT(onPercentClicked()));
+    connect(ui->AC, SIGNAL(clicked()), this, SLOT(onClearClicked()));
+    
+    // 连接导航和功能按钮
+    connect(ui->back, SIGNAL(clicked()), this, SLOT(onBackClicked()));
+    connect(ui->left, SIGNAL(clicked()), this, SLOT(onLeftClicked()));
+    connect(ui->right, SIGNAL(clicked()), this, SLOT(onRightClicked()));
+    connect(ui->OK, SIGNAL(clicked()), this, SLOT(onOKClicked()));
+    connect(ui->All, SIGNAL(clicked()), this, SLOT(onAllClicked()));
+    connect(ui->form, SIGNAL(clicked()), this, SLOT(onFormClicked()));
+    connect(ui->square, SIGNAL(clicked()), this, SLOT(onSquareClicked()));
+    connect(ui->sqrt, SIGNAL(clicked()), this, SLOT(onSqrtClicked()));
 
     // 初始化显示
     ui->textEdit->setAlignment(Qt::AlignRight);
-    ui->lineEdit->setAlignment(Qt::AlignRight);  // 修改为正确的结果栏名称
-    ui->textEdit->setReadOnly(true);
-    ui->lineEdit->setReadOnly(true);  // 修改为正确的结果栏名称
+    ui->lineEdit->setAlignment(Qt::AlignRight);
+    ui->textEdit->setReadOnly(false);
+    ui->lineEdit->setReadOnly(true);
     ui->textEdit->setText("");
     ui->lineEdit->setText("");
     
-    // 设置初始字体大小
+    // 设置样式
+    ui->textEdit->setReadOnly(false);
+    ui->textEdit->setFocusPolicy(Qt::StrongFocus);
+    ui->textEdit->setAcceptRichText(false);
+    ui->textEdit->setCursorWidth(2);
+    ui->textEdit->setStyleSheet("background-color: white; color: black;");
+    
+    // 设置字体大小
     QFont textFont = ui->textEdit->font();
-    textFont.setPointSize(20);  // 设置过程栏初始字体大小
+    textFont.setPointSize(20);
     ui->textEdit->setFont(textFont);
     
     QFont lineFont = ui->lineEdit->font();
-    lineFont.setPointSize(24);  // 设置结果栏初始字体大小
+    lineFont.setPointSize(24);
+    lineFont.setWeight(QFont::Bold);
     ui->lineEdit->setFont(lineFont);
     
-    // 加载历史记录
-    loadHistory();
+    // 设置焦点
+    ui->textEdit->setFocus();
 }
 
 MainWindow::~MainWindow()
@@ -89,70 +113,74 @@ MainWindow::~MainWindow()
 
 void MainWindow::onDigitClicked()
 {
+    if (historyMode) return;
+    
     QPushButton *button = qobject_cast<QPushButton*>(sender());
     if (!button) return;
 
     QString digit = button->text();
-    QString currentText = ui->textEdit->toPlainText();  // 使用toPlainText()而不是text()
+    QTextCursor cursor = ui->textEdit->textCursor();
+    QString currentText = ui->textEdit->toPlainText();
 
-    // 如果计算已完成，开始新的计算
     if (calculationComplete) {
         ui->textEdit->setText(digit);
         ui->lineEdit->setText("");
         calculationComplete = false;
-        // 恢复过程栏样式
         QFont font = ui->textEdit->font();
-        font.setPointSize(12);
+        font.setPointSize(20);
         font.setWeight(QFont::Normal);
         ui->textEdit->setFont(font);
         ui->textEdit->setStyleSheet("color: black;");
     } else {
-        // 避免多个前导零
-        if (currentText == "0" && digit != ".") {
-            ui->textEdit->setText(digit);
-        } else {
-            ui->textEdit->setText(currentText + digit);
-        }
+        // 在光标位置插入数字
+        cursor.insertText(digit);
+        ui->textEdit->setTextCursor(cursor);
     }
 
+    // 确保光标可见
+    ui->textEdit->ensureCursorVisible();
     updatePreview();
 }
 
 void MainWindow::onDotClicked()
 {
-    QString currentText = ui->textEdit->toPlainText();  // 使用toPlainText()而不是text()
+    if (historyMode) return;
+    
+    QString currentText = ui->textEdit->toPlainText();
+    QTextCursor cursor = ui->textEdit->textCursor();
 
-    // 如果计算已完成，开始新的计算
     if (calculationComplete) {
         ui->textEdit->setText("0.");
         ui->lineEdit->setText("");
         calculationComplete = false;
-        // 恢复过程栏样式
         QFont font = ui->textEdit->font();
-        font.setPointSize(12);
+        font.setPointSize(20);
         font.setWeight(QFont::Normal);
         ui->textEdit->setFont(font);
         ui->textEdit->setStyleSheet("color: black;");
     } else {
-        // 检查当前输入中是否已有小数点
-        QRegularExpression regex("[0-9]+\\.[0-9]*$");
-        if (!regex.match(currentText).hasMatch()) {
-            // 保留修改后的版本，移除原代码
-            if (currentText.isEmpty() || (!currentText.back().isDigit() && currentText.back() != ')')) {
-                ui->textEdit->setText(currentText + "0.");
-            }
+        // 检查当前数字是否已有小数点
+        int cursorPos = cursor.position();
+        QString textBeforeCursor = currentText.left(cursorPos);
+        
+        QRegularExpression regex("\\d*\\.\\d*$");
+        if (!regex.match(textBeforeCursor).hasMatch()) {
+            cursor.insertText(".");
+            ui->textEdit->setTextCursor(cursor);
         }
     }
 
+    ui->textEdit->ensureCursorVisible();
     updatePreview();
 }
 
 void MainWindow::onOperatorClicked()
 {
+    if (historyMode) return;
+    
     QPushButton *button = qobject_cast<QPushButton*>(sender());
     if (!button) return;
 
-    // 修复：通过按钮对象指针而不是文本来确定运算符
     QString operatorText;
     if (button == ui->multiply) {
         operatorText = "*";
@@ -163,87 +191,79 @@ void MainWindow::onOperatorClicked()
     } else if (button == ui->minus) {
         operatorText = "-";
     } else {
-        // 默认使用按钮文本（如果需要）
         operatorText = button->text();
     }
 
+    QTextCursor cursor = ui->textEdit->textCursor();
     QString currentText = ui->textEdit->toPlainText();
 
-    // 如果计算已完成，将结果栏的内容移到过程栏
     if (calculationComplete) {
         ui->textEdit->setText(ui->lineEdit->text() + operatorText);
         ui->lineEdit->setText("");
         calculationComplete = false;
-        // 恢复过程栏样式 - 修改为大字体
         QFont font = ui->textEdit->font();
-        font.setPointSize(20);  // 从12点改为20点，与构造函数中一致
+        font.setPointSize(20);
         font.setWeight(QFont::Normal);
         ui->textEdit->setFont(font);
         ui->textEdit->setStyleSheet("color: black;");
     } else {
-        // 检查是否可以添加运算符
-        if (!currentText.isEmpty()) {
-            QChar lastChar = currentText.back();
-            // 如果最后一个字符是运算符，替换它
-            if (lastChar == '+' || lastChar == '-' || lastChar == '*' || lastChar == '/') {
-                currentText.chop(1);
-            }
-            ui->textEdit->setText(currentText + operatorText);
-        }
+        // 在光标位置插入运算符
+        cursor.insertText(operatorText);
+        ui->textEdit->setTextCursor(cursor);
     }
 
+    ui->textEdit->ensureCursorVisible();
     updatePreview();
 }
 
 void MainWindow::onLeftParenthesisClicked()
 {
+    if (historyMode) return;
+    
+    QTextCursor cursor = ui->textEdit->textCursor();
     QString currentText = ui->textEdit->toPlainText();
 
-    // 如果计算已完成，将结果栏的内容移到过程栏并添加左括号
     if (calculationComplete) {
         ui->textEdit->setText(ui->lineEdit->text() + "(");
         ui->lineEdit->setText("");
         calculationComplete = false;
-        // 恢复过程栏样式 - 使用大字体
         QFont font = ui->textEdit->font();
-        font.setPointSize(20);  // 保持与构造函数一致的大字体
+        font.setPointSize(20);
         font.setWeight(QFont::Normal);
         ui->textEdit->setFont(font);
         ui->textEdit->setStyleSheet("color: black;");
     } else {
-        // 如果当前为空或最后一个字符是运算符或左括号，直接添加左括号
-        if (currentText.isEmpty() || currentText.back() == '+' || currentText.back() == '-' || 
-            currentText.back() == '*' || currentText.back() == '/' || currentText.back() == '(') {
-            ui->textEdit->setText(currentText + "(");
-        } else {
-            // 否则添加乘号和左括号
-            ui->textEdit->setText(currentText + "*(");
-        }
+        cursor.insertText("(");
+        ui->textEdit->setTextCursor(cursor);
     }
 
+    ui->textEdit->ensureCursorVisible();
     updatePreview();
 }
 
 void MainWindow::onRightParenthesisClicked()
 {
+    if (historyMode) return;
+    
+    QTextCursor cursor = ui->textEdit->textCursor();
     QString currentText = ui->textEdit->toPlainText();
 
-    // 计算左右括号数量
     int leftCount = currentText.count('(');
     int rightCount = currentText.count(')');
 
     if (leftCount > rightCount) {
-        // 如果最后一个字符是数字或右括号，直接添加右括号
-        if (!currentText.isEmpty() && (currentText.back().isDigit() || currentText.back() == ')')) {
-            ui->textEdit->setText(currentText + ")");
-        }
+        cursor.insertText(")");
+        ui->textEdit->setTextCursor(cursor);
     }
 
+    ui->textEdit->ensureCursorVisible();
     updatePreview();
 }
 
 void MainWindow::onEqualsClicked()
 {
+    if (historyMode) return;
+    
     QString expression = ui->textEdit->toPlainText();
 
     if (expression.isEmpty()) return;
@@ -259,40 +279,42 @@ void MainWindow::onEqualsClicked()
         ui->lineEdit->setText(resultStr);
         calculationComplete = true;
 
-        // 改变过程栏样式
+        // 改变样式
         QFont font = ui->textEdit->font();
-        font.setPointSize(20);  // 增大过程栏字体，从10点改为12点
+        font.setPointSize(20);
         font.setWeight(QFont::Light);
         ui->textEdit->setFont(font);
         ui->textEdit->setStyleSheet("color: gray;");
 
-        // 改变结果栏样式（显示器）
         QFont resultFont = ui->lineEdit->font();
-        resultFont.setPointSize(24);  // 增大结果栏字体，从16点改为24点
+        resultFont.setPointSize(24);
         resultFont.setWeight(QFont::Bold);
         ui->lineEdit->setFont(resultFont);
         ui->lineEdit->setStyleSheet("color: black;");
     } catch (const QString& error) {
-        QMessageBox::warning(this, "计算错误", error);
+        QMessageBox::warning(this, "Calculation Error", error);
     }
 }
 
 void MainWindow::onClearClicked()
 {
+    if (historyMode) {
+        exitHistoryMode();
+        return;
+    }
+    
     ui->textEdit->clear();
     ui->lineEdit->clear();
     calculationComplete = false;
 
-    // 恢复过程栏样式 - 修改为大字体
     QFont font = ui->textEdit->font();
-    font.setPointSize(20);  // 从12点改为20点
+    font.setPointSize(20);
     font.setWeight(QFont::Normal);
     ui->textEdit->setFont(font);
     ui->textEdit->setStyleSheet("color: black;");
 
-    // 恢复结果栏样式 - 修改为大字体
     QFont resultFont = ui->lineEdit->font();
-    resultFont.setPointSize(24);  // 从12点改为24点
+    resultFont.setPointSize(24);
     resultFont.setWeight(QFont::Normal);
     ui->lineEdit->setFont(resultFont);
     ui->lineEdit->setStyleSheet("color: black;");
@@ -300,27 +322,15 @@ void MainWindow::onClearClicked()
 
 void MainWindow::onBackspaceClicked()
 {
-    QString currentText = ui->textEdit->toPlainText();
-    if (!currentText.isEmpty()) {
-        currentText.chop(1);
-        ui->textEdit->setText(currentText);
+    if (historyMode) return;
+    
+    QTextCursor cursor = ui->textEdit->textCursor();
+    if (cursor.position() > 0) {
+        cursor.deletePreviousChar();
+        ui->textEdit->setTextCursor(cursor);
         updatePreview();
     }
-}
-
-void MainWindow::onHistoryClicked()
-{
-    if (historyList.isEmpty()) {
-        QMessageBox::information(this, "历史记录", "没有历史记录");
-        return;
-    }
-
-    QString historyText;
-    for (const QString& entry : historyList) {
-        historyText += entry + "\n";
-    }
-
-    QMessageBox::information(this, "历史记录", historyText);
+    ui->textEdit->ensureCursorVisible();
 }
 
 void MainWindow::onMemoryClearClicked()
@@ -364,9 +374,8 @@ void MainWindow::onMemoryRecallClicked()
     calculationComplete = false;
     updatePreview();
 
-    // 恢复过程栏样式
     QFont font = ui->textEdit->font();
-    font.setPointSize(12);
+    font.setPointSize(20);
     font.setWeight(QFont::Normal);
     ui->textEdit->setFont(font);
     ui->textEdit->setStyleSheet("color: black;");
@@ -374,22 +383,21 @@ void MainWindow::onMemoryRecallClicked()
 
 void MainWindow::onPercentClicked()
 {
+    if (historyMode) return;
+    
     try {
-        // 如果计算已完成，将结果栏的内容转换为百分比
         if (calculationComplete) {
             double value = ui->lineEdit->text().toDouble();
             value /= 100.0;
             ui->textEdit->setText(formatNumber(value));
             ui->lineEdit->setText("");
             calculationComplete = false;
-            // 恢复过程栏样式 - 使用大字体
             QFont font = ui->textEdit->font();
-            font.setPointSize(20);  // 保持与构造函数一致的大字体
+            font.setPointSize(20);
             font.setWeight(QFont::Normal);
             ui->textEdit->setFont(font);
             ui->textEdit->setStyleSheet("color: black;");
         } else {
-            // 原来的行为：处理过程栏的内容
             QString currentText = ui->textEdit->toPlainText();
             if (!currentText.isEmpty()) {
                 double value = currentText.toDouble();
@@ -405,6 +413,8 @@ void MainWindow::onPercentClicked()
 
 void MainWindow::onToggleSignClicked()
 {
+    if (historyMode) return;
+    
     QString currentText = ui->textEdit->toPlainText();
     if (!currentText.isEmpty()) {
         if (currentText.startsWith('-')) {
@@ -429,50 +439,67 @@ int MainWindow::findMatchingParenthesis(const QString& expr, int pos)
         if (count == 0) return i;
     }
 
-    return -1; // 没有找到匹配的右括号
+    return -1;
 }
 
 double MainWindow::calculate(const QString& expression)
 {
-    // 首先检查表达式是否平衡
-    int leftCount = expression.count('(');
-    int rightCount = expression.count(')');
-    if (leftCount != rightCount) {
-        throw QString("括号不匹配");
+    QString processedExpr = expression;
+    
+    // 处理平方运算
+    QRegularExpression squareRegex("(\\d+\\.\\d+|\\d+)\\^2");
+    QRegularExpressionMatchIterator squareIt = squareRegex.globalMatch(processedExpr);
+    while (squareIt.hasNext()) {
+        QRegularExpressionMatch match = squareIt.next();
+        double num = match.captured(1).toDouble();
+        double squared = num * num;
+        processedExpr.replace(match.capturedStart(), match.capturedLength(), QString::number(squared));
+    }
+    
+    // 处理开方运算
+    QRegularExpression sqrtRegex("sqrt\\((\\d+\\.\\d+|\\d+)\\)");
+    QRegularExpressionMatchIterator sqrtIt = sqrtRegex.globalMatch(processedExpr);
+    while (sqrtIt.hasNext()) {
+        QRegularExpressionMatch match = sqrtIt.next();
+        double num = match.captured(1).toDouble();
+        if (num < 0) {
+            throw QString("Cannot sqrt negative number");
+        }
+        double sqrtResult = sqrt(num);
+        processedExpr.replace(match.capturedStart(), match.capturedLength(), QString::number(sqrtResult));
     }
 
-    // 处理括号
-    QString expr = expression;
+    int leftCount = processedExpr.count('(');
+    int rightCount = processedExpr.count(')');
+    if (leftCount != rightCount) {
+        throw QString("Parentheses not matched");
+    }
+
+    QString expr = processedExpr;
     int pos = expr.indexOf('(');
     while (pos != -1) {
         int endPos = findMatchingParenthesis(expr, pos);
         if (endPos == -1) {
-            throw QString("括号不匹配");
+            throw QString("Parentheses not matched");
         }
 
-        // 计算括号内的表达式
         QString subExpr = expr.mid(pos + 1, endPos - pos - 1);
         double subResult = evaluateExpression(subExpr);
 
-        // 替换括号及其内容为计算结果
-        expr.replace(pos, endPos - pos + 1, formatNumber(subResult));
-
+        expr.replace(pos, endPos - pos + 1, QString::number(subResult));
         pos = expr.indexOf('(');
     }
 
-    // 计算没有括号的表达式
     return evaluateExpression(expr);
 }
 
 double MainWindow::evaluateExpression(QString expr)
 {
-    // 处理负数
     if (expr.startsWith('-')) {
         expr.prepend('0');
     }
     expr.replace("(-", "(0-");
 
-    // 分割表达式为数字和运算符 - 修复：使用ASCII字符
     QRegularExpression re("(\\d+\\.\\d+|\\d+|[+\\-*/])");
     QRegularExpressionMatchIterator it = re.globalMatch(expr);
 
@@ -482,42 +509,36 @@ double MainWindow::evaluateExpression(QString expr)
         tokens.append(match.captured(1));
     }
 
-    // 检查表达式是否有效
     if (tokens.isEmpty()) {
-        throw QString("表达式为空");
+        throw QString("Empty expression");
     }
 
-    // 修复：使用ASCII字符比较
     if (tokens.first() == "+" || tokens.first() == "*" || tokens.first() == "/") {
-        throw QString("表达式无效");
+        throw QString("Invalid expression");
     }
 
-    // 修复：使用ASCII字符比较
     if (tokens.last() == "+" || tokens.last() == "-" || tokens.last() == "*" || tokens.last() == "/") {
-        throw QString("表达式无效");
+        throw QString("Invalid expression");
     }
 
-    // 第一步：处理乘除
     QList<double> numbers;
     QList<QString> ops;
 
     numbers.append(tokens[0].toDouble());
 
-    // 修复：添加索引边界检查
     for (int i = 1; i < tokens.size(); i += 2) {
         if (i >= tokens.size() || i+1 >= tokens.size()) {
-            throw QString("表达式格式错误");
+            throw QString("Expression format error");
         }
         
         QString op = tokens[i];
         double num = tokens[i+1].toDouble();
 
-        // 修复：使用ASCII字符比较
         if (op == "*") {
             numbers.last() *= num;
         } else if (op == "/") {
             if (num == 0) {
-                throw QString("除数不能为零");
+                throw QString("Division by zero");
             }
             numbers.last() /= num;
         } else {
@@ -526,19 +547,16 @@ double MainWindow::evaluateExpression(QString expr)
         }
     }
 
-    // 第二步：处理加减
-    // 修复：添加索引边界检查
     if (numbers.isEmpty()) {
-        throw QString("计算错误");
+        throw QString("Calculation error");
     }
     
     double result = numbers[0];
     for (int i = 0; i < ops.size(); i++) {
         if (i+1 >= numbers.size()) {
-            throw QString("表达式格式错误");
+            throw QString("Expression format error");
         }
         
-        // 修复：移除重复的条件判断
         if (ops[i] == "+") {
             result += numbers[i+1];
         } else if (ops[i] == "-") {
@@ -551,9 +569,9 @@ double MainWindow::evaluateExpression(QString expr)
 
 void MainWindow::saveHistory()
 {
-    QFile file("e:/Projects/calculator/Calculator/build-debug/history.json");
+    QFile file("history.json");
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qDebug() << "无法打开历史记录文件进行写入";
+        qDebug() << "Cannot open history file for writing";
         return;
     }
 
@@ -573,9 +591,9 @@ void MainWindow::saveHistory()
 
 void MainWindow::loadHistory()
 {
-    QFile file("e:/Projects/calculator/Calculator/build-debug/history.json");
+    QFile file("history.json");
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qDebug() << "无法打开历史记录文件进行读取";
+        qDebug() << "Cannot open history file for reading";
         return;
     }
 
@@ -594,28 +612,92 @@ void MainWindow::loadHistory()
 
 void MainWindow::addToHistory(const QString& entry)
 {
-    // 限制历史记录数量
-    const int maxHistory = 100;
+    const int maxHistory = 20;
     if (historyList.size() >= maxHistory) {
-        historyList.removeLast();  // 移除最旧的记录
+        historyList.removeLast();
     }
-    historyList.prepend(entry);  // 添加到列表开头，而不是末尾
+    historyList.prepend(entry);
     saveHistory();
 }
 
-void MainWindow::updatePreview()
+void MainWindow::displayHistory()
 {
-    QString expression = ui->textEdit->toPlainText();
+    if (historyList.isEmpty()) {
+        ui->textEdit->setPlainText("no history record");
+        return;
+    }
+    
+    QString displayText;
+    int displayCount = qMin(3, historyList.size()); // 最多显示3条记录
+    int startIndex = qMax(0, currentHistoryIndex - 1); // 以当前选中项为中心
+    
+    // 调整起始索引，确保能显示3条记录
+    if (startIndex + displayCount > historyList.size()) {
+        startIndex = historyList.size() - displayCount;
+    }
+    
+    for (int i = startIndex; i < startIndex + displayCount; ++i) {
+        QString entry = historyList[i];
+        if (i == currentHistoryIndex) {
+            // 当前选中的记录加粗显示
+            displayText += "> " + entry + "\n";
+        } else {
+            // 其他记录正常显示
+            displayText += "  " + entry + "\n";
+        }
+    }
+    
+    // 移除最后一个换行符
+    if (!displayText.isEmpty()) {
+        displayText.chop(1);
+    }
+    
+    
+    
+    ui->textEdit->setPlainText(displayText);
+    ui->textEdit->setReadOnly(true);
+    ui->lineEdit->clear();
+}
 
-    // 检查表达式是否可以直接计算
+void MainWindow::exitHistoryMode()
+{
+    if (historyMode) {
+        historyMode = false;
+        // 保留textEdit中的表达式
+        // ui->textEdit->clear();
+        ui->lineEdit->clear();
+        calculationComplete = false;
+        ui->textEdit->setReadOnly(false);
+        
+        QFont textFont = ui->textEdit->font();
+        textFont.setPointSize(20);
+        textFont.setWeight(QFont::Normal);
+        ui->textEdit->setFont(textFont);
+        ui->textEdit->setStyleSheet("color: black;");
+        
+        ui->textEdit->setFocus();
+        updatePreview(); // 更新预览
+    }
+}
+
+void MainWindow::updatePreview(QString calcExpr)
+{
+    if (historyMode) return;
+    
+    QString expression;
+    
+    if (calcExpr.isEmpty()) {
+        expression = ui->textEdit->toPlainText();
+    } else {
+        expression = calcExpr;
+    }
+
     if (expression.isEmpty()) {
         ui->lineEdit->setText("");
         return;
     }
 
-    // 检查最后一个字符是否是运算符
     QChar lastChar = expression.back();
-    // 修复：使用ASCII字符比较
     if (lastChar == '+' || lastChar == '-' || lastChar == '*' || lastChar == '/') {
         ui->lineEdit->setText("");
         return;
@@ -625,11 +707,10 @@ void MainWindow::updatePreview()
         double result = calculate(expression);
         QString resultStr = formatNumber(result);
 
-        // 设置预览样式
         ui->lineEdit->setText(resultStr);
         QFont font = ui->lineEdit->font();
-        font.setPointSize(24);  // 增大预览字体，从12点改为24点
-        font.setWeight(QFont::Bold);  // 同时加粗字体
+        font.setPointSize(24);
+        font.setWeight(QFont::Bold);
         ui->lineEdit->setFont(font);
         ui->lineEdit->setStyleSheet("color: gray;");
     } catch (const QString&) {
@@ -637,25 +718,314 @@ void MainWindow::updatePreview()
     }
 }
 
+void MainWindow::onBackClicked()
+{
+    if (historyMode) {
+        exitHistoryMode();
+    } else if (!historyList.isEmpty()) {
+        QString latestEntry = historyList[0];
+        int equalsPos = latestEntry.indexOf('=');
+        if (equalsPos != -1) {
+            QString expression = latestEntry.left(equalsPos).trimmed();
+            QString result = latestEntry.mid(equalsPos + 1).trimmed();
+            
+            ui->textEdit->setText(expression);
+            ui->lineEdit->setText(result);
+            
+            QFont textFont = ui->textEdit->font();
+            textFont.setPointSize(20);
+            textFont.setWeight(QFont::Normal);
+            ui->textEdit->setFont(textFont);
+            ui->textEdit->setStyleSheet("color: black;");
+            
+            QFont lineFont = ui->lineEdit->font();
+            lineFont.setPointSize(24);
+            lineFont.setWeight(QFont::Bold);
+            ui->lineEdit->setFont(lineFont);
+            ui->lineEdit->setStyleSheet("color: gray;");
+            
+            calculationComplete = true;
+        }
+    }
+}
+
+void MainWindow::onLeftClicked()
+{
+    if (historyMode) {
+        if (currentHistoryIndex > 0) {
+            currentHistoryIndex--;
+            displayHistory();
+        }
+    } else {
+        QTextCursor cursor = ui->textEdit->textCursor();
+        if (cursor.position() > 0) {
+            cursor.movePosition(QTextCursor::Left);
+            ui->textEdit->setTextCursor(cursor);
+        }
+    }
+    ui->textEdit->ensureCursorVisible();
+}
+
+void MainWindow::onRightClicked()
+{
+    if (historyMode) {
+        if (currentHistoryIndex < historyList.size() - 1) {
+            currentHistoryIndex++;
+            displayHistory();
+        }
+    } else {
+        QTextCursor cursor = ui->textEdit->textCursor();
+        if (cursor.position() < ui->textEdit->toPlainText().length()) {
+            cursor.movePosition(QTextCursor::Right);
+            ui->textEdit->setTextCursor(cursor);
+        }
+    }
+    ui->textEdit->ensureCursorVisible();
+}
+
+void MainWindow::onOKClicked()
+{
+    if (historyMode) {
+        if (ui->lineEdit->text() == "Press OK to confirm delete") {
+            if (!historyList.isEmpty() && currentHistoryIndex >= 0 && currentHistoryIndex < historyList.size()) {
+                // 删除选中的历史记录
+                QString selectedEntry = historyList[currentHistoryIndex];
+                historyList.removeAt(currentHistoryIndex);
+                saveHistory();
+                
+                // 修复索引调整逻辑
+                if (historyList.isEmpty()) {
+                    currentHistoryIndex = -1; // 如果列表为空
+                } else if (currentHistoryIndex >= historyList.size()) {
+                    currentHistoryIndex = historyList.size() - 1; // 如果删除的是最后一项
+                }
+                // 如果删除的是中间项，currentHistoryIndex会自动指向后一项
+                
+                displayHistory();
+                ui->lineEdit->setText("Deleted: " + selectedEntry);
+                
+                // 2秒后清除提示
+                QTimer::singleShot(2000, this, [this]() {
+                    if (ui->lineEdit->text().startsWith("Deleted: ")) {
+                        ui->lineEdit->clear();
+                    }
+                });
+            }
+        } else if (ui->lineEdit->text() == "Confirm delete all history?") {
+            // 删除所有历史记录
+            historyList.clear();
+            saveHistory();
+            displayHistory();
+            ui->lineEdit->setText("All records deleted");
+            
+            // 2秒后清除提示
+            QTimer::singleShot(2000, this, [this]() {
+                if (ui->lineEdit->text() == "All records deleted") {
+                    ui->lineEdit->clear();
+                }
+            });
+        } else {
+            // 在历史模式下按OK，将选中的记录加载到计算器
+            if (!historyList.isEmpty() && currentHistoryIndex >= 0 && currentHistoryIndex < historyList.size()) {
+                QString selectedEntry = historyList[currentHistoryIndex];
+                int equalsPos = selectedEntry.indexOf('=');
+                if (equalsPos != -1) {
+                    QString expression = selectedEntry.left(equalsPos).trimmed();
+                    QString result = selectedEntry.mid(equalsPos + 1).trimmed();
+                    
+                    ui->textEdit->setText(expression);
+                    ui->lineEdit->setText(result);
+                    calculationComplete = true;
+                    
+                    exitHistoryMode();
+                }
+            }
+        }
+    } else if (calculationComplete) {
+        ui->textEdit->setText(ui->lineEdit->text());
+        ui->lineEdit->clear();
+        calculationComplete = false;
+        
+        QFont font = ui->textEdit->font();
+        font.setPointSize(20);
+        font.setWeight(QFont::Normal);
+        ui->textEdit->setFont(font);
+        ui->textEdit->setStyleSheet("color: black;");
+    }
+}
+
+void MainWindow::onDelClicked()
+{
+    if (historyMode) {
+        ui->lineEdit->setText("Press OK to confirm delete");
+    } else {
+        QTextCursor cursor = ui->textEdit->textCursor();
+        if (cursor.position() > 0) {
+            cursor.deletePreviousChar();
+            ui->textEdit->setTextCursor(cursor);
+            updatePreview();
+        }
+    }
+    ui->textEdit->ensureCursorVisible();
+}
+
+void MainWindow::onAllClicked()
+{
+    if (historyMode) {
+        ui->lineEdit->setText("Confirm delete all history?");
+    }
+}
+
+void MainWindow::onFormClicked()
+{
+    formatMode = (formatMode + 1) % 4;
+    
+    QString modeText;
+    switch (formatMode) {
+    case 0:
+        modeText = "Auto";
+        break;
+    case 1:
+        modeText = "2 Decimals";
+        break;
+    case 2:
+        modeText = "6 Decimals";
+        break;
+    case 3:
+        modeText = "Fraction";
+        break;
+    }
+    ui->lineEdit->setText("Format: " + modeText);
+
+    // 如果当前有计算结果，重新格式化显示
+    if (calculationComplete && !ui->lineEdit->text().isEmpty()) {
+        QString currentResult = ui->lineEdit->text();
+        bool ok;
+        double result = currentResult.toDouble(&ok);
+        if (ok) {
+            ui->lineEdit->setText(formatNumber(result));
+        }
+    }
+    
+    // 2秒后清除提示
+    QTimer::singleShot(2000, this, [this]() {
+        if (ui->lineEdit->text().startsWith("Format: ")) {
+            ui->lineEdit->clear();
+        }
+    });
+}
+
 QString MainWindow::formatNumber(double value)
 {
-    // 移除尾部的.0
-    if (value == floor(value)) {
-        return QString::number(static_cast<long long>(value));
-    } else {
-        // 保留必要的小数位数
+    switch (formatMode) {
+    case 1: // 两位小数
+        return QString::number(value, 'f', 2);
+    case 2: // 六位小数
+        return QString::number(value, 'f', 6);
+    case 3: // 分数格式
+        return formatAsFraction(value);
+    default: // 自动格式
         QString str = QString::number(value, 'g', 15);
-        // 移除尾部的0
         int dotPos = str.indexOf('.');
         if (dotPos != -1) {
-            while (str.back() == '0') {
+            while (str.back() == '0' && str.size() > dotPos + 1) {
                 str.chop(1);
             }
-            // 如果最后一个字符是小数点，也移除
             if (str.back() == '.') {
                 str.chop(1);
             }
         }
         return str;
     }
+}
+
+QString MainWindow::formatAsFraction(double value)
+{
+    // 处理整数情况
+    if (value == std::floor(value)) {
+        return QString::number(static_cast<long long>(value));
+    }
+    
+    // 限制分母大小以避免过长的分数
+    const long long maxDenominator = 1000000;
+    long long numerator = static_cast<long long>(std::round(value * maxDenominator));
+    long long denominator = maxDenominator;
+    
+    // 计算最大公约数
+    long long commonDivisor = gcd(numerator, denominator);
+    
+    // 约分
+    numerator /= commonDivisor;
+    denominator /= commonDivisor;
+    
+    return QString::number(numerator) + "/" + QString::number(denominator);
+}
+
+long long MainWindow::gcd(long long a, long long b)
+{
+    a = std::abs(a);
+    b = std::abs(b);
+    while (b != 0) {
+        long long temp = b;
+        b = a % b;
+        a = temp;
+    }
+    return a;
+}
+
+void MainWindow::onHistoryClicked()
+{
+    if (historyMode) {
+        exitHistoryMode();
+    } else {
+        historyMode = true;
+        currentHistoryIndex = 0;
+        displayHistory();
+    }
+}
+
+void MainWindow::onSquareClicked()
+{
+    if (historyMode) return;
+    
+    if (calculationComplete) {
+        // 如果计算已完成，直接对结果进行平方运算
+        double result = ui->lineEdit->text().toDouble();
+        double squaredResult = result * result;
+        ui->textEdit->setText(QString::number(result) + "^2");
+        ui->lineEdit->setText(formatNumber(squaredResult));
+        calculationComplete = false;
+    } else {
+        // 在光标位置插入平方符号
+        QTextCursor cursor = ui->textEdit->textCursor();
+        cursor.insertText("^2");
+        ui->textEdit->setTextCursor(cursor);
+        updatePreview();
+    }
+    ui->textEdit->ensureCursorVisible();
+}
+
+void MainWindow::onSqrtClicked()
+{
+    if (historyMode) return;
+    
+    if (calculationComplete) {
+        // 如果计算已完成，直接对结果进行开方运算
+        double result = ui->lineEdit->text().toDouble();
+        if (result >= 0) {
+            double sqrtResult = sqrt(result);
+            ui->textEdit->setText("sqrt(" + QString::number(result) + ")");
+            ui->lineEdit->setText(formatNumber(sqrtResult));
+        } else {
+            ui->lineEdit->setText("Invalid input");
+        }
+        calculationComplete = false;
+    } else {
+        // 在光标位置插入开方符号
+        QTextCursor cursor = ui->textEdit->textCursor();
+        cursor.insertText("sqrt(");
+        ui->textEdit->setTextCursor(cursor);
+        updatePreview();
+    }
+    ui->textEdit->ensureCursorVisible();
 }
