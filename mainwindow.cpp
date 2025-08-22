@@ -100,14 +100,12 @@ void MainWindow::onDigitClicked()
         ui->textEdit->setText(digit);
         ui->lineEdit->setText("");
         calculationComplete = false;
-        // 恢复过程栏样式
         QFont font = ui->textEdit->font();
         font.setPointSize(12);
         font.setWeight(QFont::Normal);
         ui->textEdit->setFont(font);
         ui->textEdit->setStyleSheet("color: black;");
     } else {
-        // 避免多个前导零
         if (currentText == "0" && digit != ".") {
             ui->textEdit->setText(digit);
         } else {
