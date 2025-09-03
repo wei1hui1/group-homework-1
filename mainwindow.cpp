@@ -636,7 +636,7 @@ void MainWindow::displayHistory()
         startIndex = historyList.size() - displayCount;
     }
     
-    for (int i = startIndex; i < startIndex + displayCount; ++i) {
+ for (int i = startIndex; i < startIndex + displayCount; ++i) {
         QString entry = historyList[i];
         if (i == currentHistoryIndex) {
             // 当前选中的记录加粗显示
@@ -664,7 +664,7 @@ void MainWindow::exitHistoryMode()
     if (historyMode) {
         historyMode = false;
         // 保留textEdit中的表达式
-        // ui->textEdit->clear();
+        ui->textEdit->clear();
         ui->lineEdit->clear();
         calculationComplete = false;
         ui->textEdit->setReadOnly(false);
@@ -676,7 +676,7 @@ void MainWindow::exitHistoryMode()
         ui->textEdit->setStyleSheet("color: black;");
         
         ui->textEdit->setFocus();
-        updatePreview(); // 更新预览
+        // updatePreview(); // 更新预览
     }
 }
 
